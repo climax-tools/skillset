@@ -1,0 +1,44 @@
+[package]
+name = "skillset"
+version = "0.1.0"
+edition = "2021"
+description = "A package manager for coding agent skills"
+authors = ["Skillset Team"]
+license = "MIT"
+repository = "https://github.com/skillset/skillset"
+
+[dependencies]
+# CLI argument parsing
+clap = { version = "4.0", features = ["derive"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Async runtime
+tokio = { version = "1.0", features = ["full"] }
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Filesystem operations
+dirs = "5.0"
+
+# Git operations
+git2 = "0.18"
+
+# OCI operations
+oci-spec = "0.6"
+reqwest = { version = "0.11", features = ["json"] }
+
+# Plugin system
+inventory = "0.3"
+libloading = "0.8"
+
+# Utilities
+async-trait = "0.1"
+futures = "0.3"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+chrono = { version = "0.4", features = ["serde"] }
