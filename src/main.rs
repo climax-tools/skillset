@@ -6,10 +6,12 @@ use tracing_subscriber;
 async fn main() -> anyhow::Result<()> {
     // Initialize tracing
     tracing_subscriber::fmt::init();
-    
+
     // Parse CLI arguments
     let cli = Cli::parse();
-    
+
     // Execute command
-    skillset::run(cli).await.map_err(|e| anyhow::anyhow!("{}", e))
+    skillset::run(cli)
+        .await
+        .map_err(|e| anyhow::anyhow!("{}", e))
 }

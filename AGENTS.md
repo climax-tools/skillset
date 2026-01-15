@@ -170,43 +170,61 @@ pub struct ConventionRegistry {
 
 ---
 
-## Configuration Format Migration
+## Configuration Format Simplification
 
-### Migration from TOML to JSON
+### JSON-First Minimalist Configuration
 
-**Rationale**: JSON format provides better Node.js/TypeScript ecosystem compatibility and aligns with npm conventions.
+**Rationale**: Simplified configuration for minimal happy path with automatic reference resolution and reduced cognitive overhead.
 
-**Migration Details**:
-- **File Change**: `skillset.toml` → `skillset.json`
-- **Data Structures**: Updated to use `serde_json` serialization
-- **Backward Compatibility**: Fallback support for legacy TOML files
-- **Validation**: JSON schema for configuration validation
+**Key Design Decisions**:
+- **No Backward Compatibility**: Clean slate approach with simplified schema
+- **Automatic Reference Resolution**: Simple names map to well-known OCI registry
+- **Scoped Name Support**: `@user/skill` format for user-scoped skills
+- **Flexible Skill Values**: Simple version strings or detailed metadata objects
 
-**Configuration Schema** (`src/config/skillset.rs`):
+**Simplified Configuration Schema** (`src/config/skillset.rs`):
 ```json
 {
   "skills": {
-    "skill-name": {
-      "version": "1.0.0",
-      "source": "git:https://github.com/user/skill",
-      "installed_at": "2025-01-14T18:30:00Z",
-      "repo_path": ".skillset/cache/skill-name",
-      "convention": "autogpt",
-      "checksum": "sha256:abc123..."
+    "file-analyzer": "1.0.0",
+    "@johndoe/web-scraper": "2.1.0",
+    "complex-skill": {
+      "version": "3.0.0",
+      "source": "git:https://github.com/custom/repo",
+      "convention": "autogpt"
     }
   },
-  "conventions": {
-    "autogpt": {
-      "enabled": true,
-      "path_pattern": "skills/autogpt/{name}",
-      "detection_patterns": ["skill.py", "requirements.txt", "__init__.py"],
-      "metadata_file": "skill.json"
+  "registry": "ghcr.io/skillset",
+  "conventions": ["autogpt", "langchain"]
+}
+```
+
+#### Reference Resolution Logic
+
+**Simple Skills**:
+- `"file-analyzer": "1.0.0"` → `oci:ghcr.io/skillset/file-analyzer:v1.0.0`
+- Uses project `registry` as base (e.g., `ghcr.io/skillset`)
+
+**Scoped Skills**:
+- `"@johndoe/web-scraper": "2.1.0"` → `oci:ghcr.io/johndoe/web-scraper:v2.1.0`
+- Username extracted from scope, registry domain maintained from project config
+
+**Complex Skills**:
+- `"complex-skill": { ... }` → Uses explicit `source` field or falls back to same resolution
+- Allows overriding convention and source
+
+#### Skill Configuration Enum
+
+```rust
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum SkillConfig {
+    Simple(String), // Just version
+    Detailed {
+        version: String,
+        source: Option<String>, // Override auto-resolution
+        convention: Option<String>, // Override auto-detection
     }
-  },
-  "registry": {
-    "default": "ghcr.io",
-    "auth": {}
-  }
 }
 ```
 
@@ -216,26 +234,36 @@ pub struct ConventionRegistry {
 
 ### Skill Organization by Convention
 
-Skills are organized according to their detected or specified convention:
+Skills are organized according to their detected or specified convention. The simplified configuration removes complex convention settings in favor of auto-detection:
 
 ```
 project/
-├── skillset.json              # Configuration file
-├── skills/                    # Auto-organized skills
-│   ├── autogpt/             # Auto-GPT framework skills
-│   │   ├── file-analyzer/   # Example: skill.py, requirements.txt
-│   │   └── web-scraper/      # Example: skill.py, requirements.txt
-│   ├── langchain/            # LangChain framework skills
-│   │   ├── llm-tool/         # Example: tool.yaml, tool.py
-│   │   └── document-summarizer/ # Example: tool.yaml, llm_tool.py
-│   └── custom/             # Custom framework skills
-│       └── my-tool/        # Example: package.json, index.js
+├── skillset.json              # Simplified configuration file
+├── skills/                    # Auto-organized skills by framework
+│   ├── autogpt/             # Auto-GPT framework skills (auto-detected)
+│   │   ├── file-analyzer/   # skill.py, requirements.txt, skill.json
+│   │   └── web-scraper/      # skill.py, requirements.txt, skill.json
+│   ├── langchain/            # LangChain framework skills (auto-detected)
+│   │   ├── llm-tool/         # tool.yaml, tool.py, pyproject.toml
+│   │   └── document-summarizer/ # tool.yaml, llm_tool.py
+│   └── custom/             # Custom framework skills (user-specified)
+│       └── my-tool/        # package.json, index.js
 └── .skillset/               # Working directory
     ├── cache/                # Downloaded repositories
-    │   ├── file-analyzer/   # Cached git repo
-    │   └── web-scraper/    # Cached git repo
+    │   ├── file-analyzer/   # Cached source code
+    │   └── web-scraper/    # Cached source code
     └── metadata/              # Extracted skill metadata
 ```
+
+**Auto-Detection Priority**:
+1. **Convention Override**: Explicit `convention` field in complex skill config
+2. **File Pattern Detection**: Built-in detection logic for each framework
+3. **Fallback**: Default to custom convention if no patterns match
+
+**Simplified Convention Management**:
+- Conventions are enabled by name in `conventions` array
+- No complex path patterns or detection patterns in config
+- All detection logic is hardcoded for simplicity and performance
 
 ---
 
@@ -243,13 +271,22 @@ project/
 
 ### npm-like Semantics
 
-The CLI follows familiar npm package manager semantics:
+The CLI follows familiar npm package manager semantics with simplified resolution:
 
 ```bash
-# Install a skill from Git
-skillset add git:https://github.com/user/skill
+# Install simple skill (auto-resolves to registry)
+skillset add file-analyzer@1.0.0
 
-# Install from OCI registry
+# Install scoped skill (user namespace)
+skillset add @johndoe/web-scraper@2.0.0
+
+# Install from explicit source
+skillset add custom-skill --source git:https://github.com/user/repo
+
+# Install with convention override
+skillset add my-tool --convention langchain
+
+# Install from OCI registry (explicit)
 skillset add oci:ghcr.io/user/skill:v1.0.0
 
 # List all installed skills
@@ -275,6 +312,17 @@ skillset convention disable langchain
 # Publish to OCI registry
 skillset publish ./my-skill oci:ghcr.io/user/my-skill:v1.0.0
 ```
+
+#### Simplified Reference Resolution
+
+**Skill Name Resolution**:
+- `file-analyzer` → `oci:ghcr.io/skillset/file-analyzer:v1.0.0`
+- `@johndoe/web-scraper` → `oci:ghcr.io/johndoe/web-scraper:v2.0.0`
+- Custom sources override auto-resolution
+
+**Version Handling**:
+- Versions are automatically prefixed with `v` for OCI tags
+- `latest` resolves to the most recent version in registry
 
 ### Command Structure (`src/cli/mod.rs`)
 
@@ -313,7 +361,8 @@ To integrate a new agent framework:
        fn name(&self) -> &str { "my-framework" }
        fn detect(&self, path: &Path) -> Result<bool> { /* detection logic */ }
        fn organize(&self, skill_name: &str, source_path: &Path, target_path: &Path) -> Result<()> { /* organization logic */ }
-       fn config(&self) -> &ConventionConfig { &self.config }
+       fn description(&self) -> &str { "My framework description" }
+       fn version(&self) -> &str { "1.0.0" }
    }
    ```
 
@@ -323,19 +372,17 @@ To integrate a new agent framework:
    manager.convention_registry.register(Box::new(MyFrameworkConvention::new()));
    ```
 
-3. **Add Detection Patterns** (`src/config/skillset.rs`)
-   ```rust
-   conventions.insert("my-framework".to_string(), ConventionConfig {
-       enabled: true,
-       path_pattern: "skills/my-framework/{name}".to_string(),
-       detection_patterns: vec![
-           "framework.yaml".to_string(),
-           "main.py".to_string(),
-           "config.json".to_string(),
-       ],
-       metadata_file: Some("framework.yaml".to_string()),
-   });
+3. **Add to Enabled Conventions** (in project `skillset.json`)
+   ```json
+   {
+     "conventions": ["autogpt", "langchain", "my-framework"]
+   }
    ```
+
+**Simplified Framework Integration**: 
+- Detection logic is hardcoded in the convention implementation
+- No complex configuration patterns in JSON
+- Convention name used for directory organization (`skills/my-framework/{name}/`)
 
 ### Framework Integration Example
 
@@ -468,12 +515,26 @@ impl Convention for AutoGptConvention {
 
 ## Architecture Decision Rationale
 
+### Why Minimal Configuration?
+
+1. **Reduced Cognitive Load**: Simple skill references with automatic resolution
+2. **Developer Experience**: `skillset add file-analyzer@1.0.0` just works without complex setup
+3. **Faster Adoption**: Minimal configuration barrier to entry
+4. **OCI-Native**: Leverages existing container registry ecosystem
+
 ### Why JSON over TOML?
 
 1. **Ecosystem Alignment**: JSON is native to Node.js/TypeScript development
 2. **Tool Compatibility**: Better integration with npm, yarn, and existing tooling
 3. **Developer Experience**: Familiar format reduces learning curve
 4. **Schema Validation**: JSON Schema support for better validation
+
+### Why Automatic Reference Resolution?
+
+1. **Simplicity**: `file-analyzer` → `oci:ghcr.io/skillset/file-analyzer:v1.0.0`
+2. **Scoped Namespacing**: `@user/skill` maps naturally to OCI registry structure
+3. **Consistency**: All skills follow the same naming and resolution pattern
+4. **Flexibility**: Complex skills can still override defaults when needed
 
 ### Why Orthogonal Conventions?
 
@@ -496,4 +557,14 @@ impl Convention for AutoGptConvention {
 3. **Error Handling**: Proper propagation of async errors
 4. **Scalability**: Concurrent operations where possible
 
-This architecture provides a solid foundation for building a comprehensive skill management system that can adapt to various coding agent frameworks while maintaining clean separation of concerns and extensibility.
+## Summary of Simplified Architecture
+
+The simplified architecture prioritizes developer experience and adoption through:
+
+1. **Minimal Configuration**: JSON schema with automatic reference resolution
+2. **Zero-Configuration Skills**: Simple name-to-OCI mapping with version management
+3. **Scoped Namespaces**: Natural `@user/skill` format for community contributions
+4. **Flexible Override**: Complex skills can override conventions and sources when needed
+5. **Hardcoded Conventions**: Detection logic in code rather than configuration for performance
+
+This architecture provides a solid foundation for building a comprehensive skill management system that can adapt to various coding agent frameworks while maintaining clean separation of concerns, extensibility, and a developer-first approach to skill distribution and management.

@@ -13,12 +13,13 @@ pub struct Cli {
 pub enum Commands {
     /// Add a new skill from a source
     Add {
-        /// Skill reference (git URL, OCI reference, or local path)
+        /// Skill reference (name, git URL, OCI reference, or local path)
+        /// Examples: file-analyzer@1.0.0, @user/skill@2.0.0, git:https://github.com/user/repo
         reference: String,
         /// Override convention detection
         #[arg(long, short)]
         convention: Option<String>,
-        /// Install specific version/tag
+        /// Override version (for use with explicit source references)
         #[arg(long, short)]
         version: Option<String>,
     },
@@ -74,31 +75,25 @@ pub enum ConventionCommands {
 
 // Export enums for use in other modules
 
-mod commands;
 mod args;
+mod commands;
 
 pub async fn handle_command(cli: Cli) -> crate::error::Result<()> {
     match cli.command {
-        Commands::Add { reference, convention, version } => {
-            commands::handle_add(reference, convention, version).await
-        }
-        Commands::Remove { name } => {
-            commands::handle_remove(name).await
-        }
-        Commands::List { verbose } => {
-            commands::handle_list(verbose).await
-        }
-        Commands::Update { name } => {
-            commands::handle_update(name).await
-        }
-        Commands::Info { name } => {
-            commands::handle_info(name).await
-        }
-        Commands::Convention { command } => {
-            commands::handle_convention(command).await
-        }
-        Commands::Publish { path, reference, registry } => {
-            commands::handle_publish(path, reference, registry).await
-        }
+        Commands::Add {
+            reference,
+            convention,
+            version,
+        } => commands::handle_add(reference, convention, version).await,
+        Commands::Remove { name } => commands::handle_remove(name).await,
+        Commands::List { verbose } => commands::handle_list(verbose).await,
+        Commands::Update { name } => commands::handle_update(name).await,
+        Commands::Info { name } => commands::handle_info(name).await,
+        Commands::Convention { command } => commands::handle_convention(command).await,
+        Commands::Publish {
+            path,
+            reference,
+            registry,
+        } => commands::handle_publish(path, reference, registry).await,
     }
 }

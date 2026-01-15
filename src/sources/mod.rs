@@ -28,17 +28,17 @@ impl SourceRegistry {
             sources: HashMap::new(),
         }
     }
-    
+
     pub fn register(&mut self, source: Box<dyn SkillSource>) {
         let source_type = source.source_type();
         let type_name = match source_type {
             SourceType::Git => "git",
-            SourceType::Oci => "oci", 
+            SourceType::Oci => "oci",
             SourceType::Local => "local",
         };
         self.sources.insert(type_name.to_string(), source);
     }
-    
+
     pub fn get(&self, source_type: &str) -> Option<&dyn SkillSource> {
         self.sources.get(source_type).map(|s| s.as_ref())
     }

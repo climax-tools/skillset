@@ -9,7 +9,7 @@ impl OciPublisher {
     pub fn new() -> Self {
         Self {}
     }
-    
+
     pub async fn publish_skill(
         &self,
         skill_path: &Path,
@@ -21,7 +21,7 @@ impl OciPublisher {
         // 3. Upload skill files as layers
         // 4. Push manifest to registry
         // 5. Return published reference
-        
+
         todo!("Implement OCI skill publishing")
     }
 }

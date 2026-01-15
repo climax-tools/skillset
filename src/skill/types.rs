@@ -11,9 +11,18 @@ pub struct Skill {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum SkillSource {
-    Git { url: String, branch: Option<String>, tag: Option<String> },
-    Oci { reference: String, registry: Option<String> },
-    Local { path: PathBuf },
+    Git {
+        url: String,
+        branch: Option<String>,
+        tag: Option<String>,
+    },
+    Oci {
+        reference: String,
+        registry: Option<String>,
+    },
+    Local {
+        path: PathBuf,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
