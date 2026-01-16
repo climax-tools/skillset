@@ -51,6 +51,11 @@ impl TestProject {
         let config_path = self.skillset_config_path();
         Ok(std::fs::read_to_string(&config_path)?)
     }
+
+    pub fn write_skillset_config(&self, content: &str) -> Result<(), Box<dyn std::error::Error>> {
+        let config_path = self.skillset_config_path();
+        Ok(std::fs::write(&config_path, content)?)
+    }
 }
 
 impl Drop for TestProject {

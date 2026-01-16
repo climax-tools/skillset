@@ -4,6 +4,8 @@ use std::collections::HashMap;
 use crate::error::Result;
 use crate::skill::types::FetchedSkill;
 
+pub mod git;
+
 #[async_trait]
 pub trait SkillSource: Send + Sync {
     async fn fetch(&self, reference: &str) -> Result<FetchedSkill>;

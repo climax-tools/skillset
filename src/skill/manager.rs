@@ -4,26 +4,33 @@ use crate::config::skillset::SkillsetConfig;
 use crate::conventions::ConventionRegistry;
 use crate::error::Result;
 use crate::skill::FetchedSkill;
+use crate::sources::{git::GitSource, SourceRegistry};
 
 pub struct SkillManager {
     convention_registry: ConventionRegistry,
     config: SkillsetConfig,
     project_path: PathBuf,
+    source_registry: SourceRegistry,
 }
 
 impl SkillManager {
     pub fn new(project_path: PathBuf) -> Result<Self> {
         let config = Self::load_config(&project_path)?;
         let mut convention_registry = ConventionRegistry::new();
+        let mut source_registry = SourceRegistry::new();
 
         // Register built-in conventions
         convention_registry.register(Box::new(crate::conventions::AutoGptConvention::new()));
         convention_registry.register(Box::new(crate::conventions::LangchainConvention::new()));
 
+        // Register built-in sources
+        source_registry.register(Box::new(GitSource::new(&project_path)));
+
         Ok(Self {
             convention_registry,
             config,
             project_path,
+            source_registry,
         })
     }
 
@@ -254,8 +261,13 @@ impl SkillManager {
     ) -> Result<FetchedSkill> {
         match source_type {
             "git" => {
-                // TODO: Implement Git source fetching
-                todo!("Implement Git source fetching")
+                if let Some(source) = self.source_registry.get("git") {
+                    source.fetch(source_ref).await
+                } else {
+                    Err(crate::error::SkillsetError::SourceNotFound(
+                        "git".to_string(),
+                    ))
+                }
             }
             "oci" => {
                 // TODO: Implement OCI source fetching
