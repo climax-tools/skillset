@@ -7,8 +7,10 @@ use std::path::Path;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SkillsetConfig {
     pub skills: HashMap<String, SkillConfig>,
-    pub registry: String,
-    pub conventions: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub registry: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub conventions: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -64,13 +66,25 @@ impl Default for SkillsetConfig {
     fn default() -> Self {
         Self {
             skills: HashMap::new(),
-            registry: "ghcr.io/skillset".to_string(),
-            conventions: vec!["autogpt".to_string(), "langchain".to_string()],
+            registry: None,
+            conventions: None,
         }
     }
 }
 
 impl SkillsetConfig {
+    /// Get the registry URL with runtime default fallback
+    pub fn get_registry(&self) -> &str {
+        self.registry.as_deref().unwrap_or("ghcr.io/skillset")
+    }
+
+    /// Get the list of enabled conventions with runtime default fallback
+    pub fn get_conventions(&self) -> Vec<String> {
+        self.conventions
+            .clone()
+            .unwrap_or_else(|| vec!["autogpt".to_string(), "langchain".to_string()])
+    }
+
     pub fn resolve_skill_reference(
         &self,
         skill_name: &str,
@@ -88,7 +102,7 @@ impl SkillsetConfig {
 
     fn resolve_name_to_oci_reference(&self, skill_name: &str, version: &str) -> Result<String> {
         // Parse the registry to get domain and namespace
-        let parts: Vec<&str> = self.registry.split('/').collect();
+        let parts: Vec<&str> = self.get_registry().split('/').collect();
         let (domain, default_namespace) = if parts.len() >= 2 {
             (parts[0], parts[1])
         } else {
@@ -145,21 +159,9 @@ impl SkillsetConfig {
             // Try JSON first
             match Self::load_from_file(path) {
                 Ok(config) => Ok(config),
-                Err(_) => {
-                    // Try TOML if JSON fails
-                    let toml_path = path.with_extension("toml");
-                    if toml_path.exists() {
-                        eprintln!(
-                            "Warning: skillset.toml is deprecated, please migrate to skillset.json"
-                        );
-                        // For now, just try JSON
-                        Self::load_from_file(path)
-                    } else {
-                        Err(crate::error::SkillsetError::Config(
-                            "Configuration file not found: skillset.json".to_string(),
-                        ))
-                    }
-                }
+                Err(_) => Err(crate::error::SkillsetError::Config(
+                    "Configuration file not found: skillset.json".to_string(),
+                )),
             }
         } else {
             Ok(Self::default())

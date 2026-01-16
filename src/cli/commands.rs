@@ -240,18 +240,58 @@ pub async fn handle_info(name: String) -> Result<()> {
 }
 
 pub async fn handle_convention(command: ConventionCommands) -> Result<()> {
+    let project_path = std::env::current_dir().map_err(|e| crate::error::SkillsetError::Io(e))?;
+    let mut manager = crate::skill::manager::SkillManager::new(project_path)?;
+
     match command {
         ConventionCommands::List => {
-            println!("Listing conventions");
-            todo!("Implement convention list")
+            let conventions = manager.config().get_conventions();
+            if conventions.is_empty() {
+                println!("No conventions are enabled");
+            } else {
+                println!("Enabled conventions:");
+                for convention in conventions {
+                    println!("  - {}", convention);
+                }
+            }
+            Ok(())
         }
         ConventionCommands::Enable { name } => {
-            println!("Enabling convention: {}", name);
-            todo!("Implement convention enable")
+            let config = manager.config_mut();
+            let mut conventions = config.get_conventions();
+
+            if conventions.contains(&name) {
+                println!("Convention '{}' is already enabled", name);
+                return Ok(());
+            }
+
+            // Validate convention name
+            if !["autogpt", "langchain"].contains(&name.as_str()) {
+                return Err(crate::error::SkillsetError::Config(format!(
+                    "Unknown convention: {}. Available: autogpt, langchain",
+                    name
+                )));
+            }
+
+            conventions.push(name.clone());
+            config.conventions = Some(conventions);
+            manager.save_config()?;
+            println!("Enabled convention: {}", name);
+            Ok(())
         }
         ConventionCommands::Disable { name } => {
-            println!("Disabling convention: {}", name);
-            todo!("Implement convention disable")
+            let config = manager.config_mut();
+            let mut conventions = config.get_conventions();
+
+            if let Some(pos) = conventions.iter().position(|c| c == &name) {
+                conventions.remove(pos);
+                config.conventions = Some(conventions);
+                manager.save_config()?;
+                println!("Disabled convention: {}", name);
+            } else {
+                println!("Convention '{}' is not enabled", name);
+            }
+            Ok(())
         }
         ConventionCommands::Configure { name } => {
             println!("Configuring convention: {}", name);

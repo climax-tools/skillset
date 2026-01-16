@@ -19,9 +19,15 @@ impl SkillManager {
         let mut convention_registry = ConventionRegistry::new();
         let mut source_registry = SourceRegistry::new();
 
-        // Register built-in conventions
-        convention_registry.register(Box::new(crate::conventions::AutoGptConvention::new()));
-        convention_registry.register(Box::new(crate::conventions::LangchainConvention::new()));
+        // Register only enabled conventions
+        let enabled_conventions = config.get_conventions();
+
+        if enabled_conventions.contains(&"autogpt".to_string()) {
+            convention_registry.register(Box::new(crate::conventions::AutoGptConvention::new()));
+        }
+        if enabled_conventions.contains(&"langchain".to_string()) {
+            convention_registry.register(Box::new(crate::conventions::LangchainConvention::new()));
+        }
 
         // Register built-in sources
         source_registry.register(Box::new(GitSource::new(&project_path)));

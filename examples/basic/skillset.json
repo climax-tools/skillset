@@ -1,0 +1,14 @@
+{
+  "skills": {
+    "Hello-World": {
+      "version": "latest",
+      "source": "/Users/santiago_ho/Code/climax/skillset/examples/basic/.skillset/cache/Hello-World",
+      "convention": "autogpt"
+    }
+  },
+  "registry": "ghcr.io/skillset",
+  "conventions": [
+    "autogpt",
+    "langchain"
+  ]
+}
