@@ -28,6 +28,9 @@ pub enum SkillsetError {
     #[error("HTTP error: {0}")]
     Http(#[from] reqwest::Error),
 
+    #[error("Cache error: {0}")]
+    Cache(#[from] anyhow::Error),
+
     #[error("OCI error: {0}")]
     Oci(String),
 

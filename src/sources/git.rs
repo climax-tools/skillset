@@ -4,17 +4,30 @@ use async_trait::async_trait;
 use git2::Repository;
 
 use super::{SkillSource, SourceType};
+use crate::cache::{CacheMetadata, CachePaths};
 use crate::error::{Result, SkillsetError};
 use crate::skill::types::{FetchedSkill, SkillMetadata};
 
 pub struct GitSource {
-    cache_dir: PathBuf,
+    cache: CachePaths,
 }
 
 impl GitSource {
-    pub fn new(project_path: &std::path::Path) -> Self {
-        let cache_dir = project_path.join(".skillset").join("cache");
-        Self { cache_dir }
+    pub fn new() -> Result<Self> {
+        let cache = CachePaths::new()?;
+        cache.ensure_directories()?;
+        Ok(Self { cache })
+    }
+
+    fn parse_reference(&self, reference: &str) -> Result<(String, Option<String>)> {
+        let git_url = reference
+            .strip_prefix("git:")
+            .unwrap_or(reference)
+            .to_string();
+
+        // For now, we don't support explicit references in git URL
+        // This can be extended later to handle URL#branch syntax
+        Ok((git_url, None))
     }
 
     fn extract_skill_name_from_url(&self, git_url: &str) -> Result<String> {
@@ -33,67 +46,75 @@ impl GitSource {
         }
     }
 
-    fn clone_repository(&self, git_url: &str, skill_name: &str) -> Result<PathBuf> {
-        Self::clone_repository_static(&self.cache_dir, git_url, skill_name)
-    }
-
-    fn clone_repository_static(
-        cache_dir: &PathBuf,
-        git_url: &str,
+    async fn get_or_clone(
+        &self,
+        url: &str,
+        reference: Option<&str>,
         skill_name: &str,
     ) -> Result<PathBuf> {
-        // Create cache directory if it doesn't exist
-        std::fs::create_dir_all(cache_dir)?;
+        let cache_key = self.cache.git_cache_key(url, reference);
+        let checkout_path = self.cache.git_checkout_path(skill_name);
+        let url_clone = url.to_string();
 
-        // Clone to cache directory
-        let clone_path = cache_dir.join(skill_name);
+        // For now, we'll just clone directly to checkout location
+        // The bare repository caching can be added later if needed
+        let checkout_path_clone = checkout_path.clone();
+        tokio::task::spawn_blocking(move || {
+            // Remove existing checkout if it exists
+            if checkout_path_clone.exists() {
+                std::fs::remove_dir_all(&checkout_path_clone)?;
+            }
 
-        // Remove existing directory if it exists
-        if clone_path.exists() {
-            std::fs::remove_dir_all(&clone_path)?;
-        }
+            // Clone repository directly to checkout location
+            // Remove any existing directory first to avoid lock conflicts
+            if checkout_path_clone.exists() {
+                std::fs::remove_dir_all(&checkout_path_clone).map_err(|e| SkillsetError::Io(e))?;
+            }
+            Repository::clone(&url_clone, &checkout_path_clone)
+                .map_err(|e| SkillsetError::Git(e))?;
 
-        // Clone the repository
-        let _repo = Repository::clone(git_url, &clone_path).map_err(|e| SkillsetError::Git(e))?;
+            Ok::<PathBuf, SkillsetError>(checkout_path_clone)
+        })
+        .await
+        .map_err(|e| SkillsetError::Source(format!("Task execution failed: {}", e)))??;
 
-        Ok(clone_path)
+        // Save metadata asynchronously
+        let metadata = CacheMetadata {
+            url: url.to_string(),
+            reference: reference.map(|r| r.to_string()),
+            skill_name: skill_name.to_string(),
+            source_type: "git".to_string(),
+        };
+
+        let metadata_path = self.cache.metadata_path(&cache_key);
+        metadata.save(&metadata_path).await?;
+
+        Ok(checkout_path)
     }
 }
 
 #[async_trait]
 impl SkillSource for GitSource {
     async fn fetch(&self, reference: &str) -> Result<FetchedSkill> {
-        let git_url = reference
-            .strip_prefix("git:")
-            .unwrap_or(reference)
-            .to_string();
-        let skill_name = self.extract_skill_name_from_url(&git_url)?;
-        let cache_dir = self.cache_dir.clone();
-        let skill_name_for_closure = skill_name.clone();
-
-        // Clone repository in blocking task
-        let source_path = tokio::task::spawn_blocking(move || {
-            Self::clone_repository_static(&cache_dir, &git_url, &skill_name_for_closure)
-        })
-        .await
-        .map_err(|e| SkillsetError::Source(format!("Task execution failed: {}", e)))??;
-
-        // Create basic metadata
-        let metadata = SkillMetadata {
-            installed_at: chrono::Utc::now().to_rfc3339(),
-            repo_path: source_path.clone(),
-            convention: "unknown".to_string(), // Will be detected later
-            checksum: None,
-            description: None,
-            author: None,
-            dependencies: Vec::new(),
-        };
+        let (url, ref_spec) = self.parse_reference(reference)?;
+        let skill_name = self.extract_skill_name_from_url(&url)?;
+        let checkout_path = self
+            .get_or_clone(&url, ref_spec.as_deref(), &skill_name)
+            .await?;
 
         Ok(FetchedSkill {
             name: skill_name,
-            version: "latest".to_string(), // Use default branch for minimal version
-            source_path,
-            metadata,
+            version: ref_spec.unwrap_or_else(|| "latest".to_string()),
+            source_path: checkout_path.clone(),
+            metadata: SkillMetadata {
+                installed_at: chrono::Utc::now().to_rfc3339(),
+                repo_path: checkout_path,
+                convention: "unknown".to_string(), // Will be detected later
+                checksum: None,
+                description: None,
+                author: None,
+                dependencies: Vec::new(),
+            },
         })
     }
 
@@ -105,5 +126,51 @@ impl SkillSource for GitSource {
 
     fn source_type(&self) -> SourceType {
         SourceType::Git
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_parse_reference() {
+        let source = GitSource::new().unwrap();
+
+        // Test basic URL
+        let (url, reference) = source
+            .parse_reference("https://github.com/user/repo.git")
+            .unwrap();
+        assert_eq!(url, "https://github.com/user/repo.git");
+        assert_eq!(reference, None);
+
+        // Test with git: prefix
+        let (url, reference) = source
+            .parse_reference("git:https://github.com/user/repo.git")
+            .unwrap();
+        assert_eq!(url, "https://github.com/user/repo.git");
+        assert_eq!(reference, None);
+    }
+
+    #[test]
+    fn test_extract_skill_name_from_url() {
+        let source = GitSource::new().unwrap();
+
+        // Test HTTPS URL
+        let name = source
+            .extract_skill_name_from_url("https://github.com/user/skill-name.git")
+            .unwrap();
+        assert_eq!(name, "skill-name");
+
+        // Test without .git extension
+        let name = source
+            .extract_skill_name_from_url("https://github.com/user/skill-name")
+            .unwrap();
+        assert_eq!(name, "skill-name");
+
+        // Test invalid URL
+        let result = source.extract_skill_name_from_url("invalid-url");
+        assert!(result.is_err());
     }
 }

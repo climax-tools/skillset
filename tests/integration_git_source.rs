@@ -20,12 +20,12 @@ async fn test_add_git_source_happy_path() {
     assert!(config.contains("Hello-World"));
     assert!(config.contains("latest"));
 
-    // Verify skill was cached
-    let cache_dir = test_project
-        .project_path()
-        .join(".skillset/cache/Hello-World");
-    assert!(cache_dir.exists());
-    assert!(cache_dir.join("README").exists());
+    // Verify skill was cached in user-wide cache
+    let user_cache_dir = dirs::cache_dir()
+        .expect("No cache directory found")
+        .join("skillset/git/checkouts/Hello-World");
+    assert!(user_cache_dir.exists());
+    assert!(user_cache_dir.join("README").exists());
 
     // Verify skill was organized
     let skill_dir = test_project

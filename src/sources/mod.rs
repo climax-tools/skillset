@@ -5,6 +5,7 @@ use crate::error::Result;
 use crate::skill::types::FetchedSkill;
 
 pub mod git;
+use git::GitSource;
 
 #[async_trait]
 pub trait SkillSource: Send + Sync {
@@ -25,10 +26,16 @@ pub struct SourceRegistry {
 }
 
 impl SourceRegistry {
-    pub fn new() -> Self {
-        Self {
-            sources: HashMap::new(),
-        }
+    pub fn new() -> Result<Self> {
+        let mut sources = HashMap::new();
+
+        // Register built-in sources
+        sources.insert(
+            "git".to_string(),
+            Box::new(GitSource::new()?) as Box<dyn SkillSource>,
+        );
+
+        Ok(Self { sources })
     }
 
     pub fn register(&mut self, source: Box<dyn SkillSource>) {

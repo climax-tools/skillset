@@ -4,7 +4,7 @@ use crate::config::skillset::SkillsetConfig;
 use crate::conventions::ConventionRegistry;
 use crate::error::Result;
 use crate::skill::FetchedSkill;
-use crate::sources::{git::GitSource, SourceRegistry};
+use crate::sources::SourceRegistry;
 
 pub struct SkillManager {
     convention_registry: ConventionRegistry,
@@ -17,7 +17,9 @@ impl SkillManager {
     pub fn new(project_path: PathBuf) -> Result<Self> {
         let config = Self::load_config(&project_path)?;
         let mut convention_registry = ConventionRegistry::new();
-        let mut source_registry = SourceRegistry::new();
+
+        // Sources manage their own caching
+        let source_registry = SourceRegistry::new()?;
 
         // Register only enabled conventions
         let enabled_conventions = config.get_conventions();
@@ -28,9 +30,6 @@ impl SkillManager {
         if enabled_conventions.contains(&"langchain".to_string()) {
             convention_registry.register(Box::new(crate::conventions::LangchainConvention::new()));
         }
-
-        // Register built-in sources
-        source_registry.register(Box::new(GitSource::new(&project_path)));
 
         Ok(Self {
             convention_registry,
