@@ -1,4 +1,4 @@
-# AGENTS.md - Skillset CLI Architecture and Integration Guide
+# Skillset
 
 ## Tool Overview
 
