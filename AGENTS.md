@@ -29,13 +29,12 @@
 1. [Core Architecture Overview](#core-architecture-overview)
 2. [Pluggable Sources System](#pluggable-sources-system)
 3. [Convention System Architecture](#convention-system-architecture)
-4. [Configuration Format Migration](#configuration-format-migration)
-5. [Project Structure Patterns](#project-structure-patterns)
-6. [CLI Design and Semantics](#cli-design-and-semantics)
-7. [Integration Guidelines for Agent Frameworks](#integration-guidelines-for-agent-frameworks)
-8. [Development Guidelines](#development-guidelines)
-9. [Code Examples and Patterns](#code-examples-and-patterns)
-10. [Architecture Decision Rationale](#architecture-decision-rationale)
+4. [Project Structure Patterns](#project-structure-patterns)
+5. [CLI Design and Semantics](#cli-design-and-semantics)
+6. [Integration Guidelines for Agent Frameworks](#integration-guidelines-for-agent-frameworks)
+7. [Development Guidelines](#development-guidelines)
+8. [Code Examples and Patterns](#code-examples-and-patterns)
+9. [Architecture Decision Rationale](#architecture-decision-rationale)
 
 ---
 
@@ -139,15 +138,6 @@ impl SourceRegistry {
 - **No Project Dependencies**: SourceRegistry works independently
 - **Error Propagation**: Cache initialization errors bubble up
 
----
-
-## User-Wide Cache Architecture
-
-### Cache-First Design Principle
-
-**Decision**: Sources manage both retrieval AND caching internally, rather than having a separate cache management layer. This unified approach simplifies the architecture while enabling user-wide deduplication.
-
-**Benefits**:
 ---
 
 ## User-Wide Cache Architecture
@@ -334,6 +324,246 @@ impl SkillManager {
 - **Zero Cache Management**: SkillManager doesn't handle cache operations
 - **Clean Separation**: Orchestration vs. storage concerns separated
 - **Consistent Behavior**: All skills use same caching infrastructure
+
+---
+
+## Convention System Architecture
+
+### Convention Trait (`src/conventions.rs`)
+
+All agent framework conventions implement the `Convention` trait:
+
+```rust
+#[async_trait]
+pub trait Convention: Send + Sync {
+    fn name(&self) -> &str;
+    fn version(&self) -> &str;
+    fn description(&self) -> &str;
+    async fn detect(&self, path: &std::path::Path) -> Result<bool>;
+    async fn organize(&self, skill_name: &str, source_path: &std::path::Path, target_path: &std::path::Path) -> Result<()>;
+    fn config(&self) -> &ConventionConfig;
+}
+```
+
+#### Built-in Conventions
+
+1. **Auto-GPT Convention** (`src/conventions/autogpt.rs`)
+   - **Detection Patterns**: `["skill.py", "requirements.txt", "__init__.py"]`
+   - **Path Pattern**: `skills/autogpt/{name}/`
+   - **Metadata File**: `skill.json`
+
+2. **LangChain Convention** (`src/conventions/langchain.rs`)
+   - **Detection Patterns**: `["tool.yaml", "*.py", "pyproject.toml"]`
+   - **Path Pattern**: `skills/langchain/{name}/`
+   - **Metadata File**: `tool.yaml`
+
+3. **Custom Convention** (`src/conventions/custom.rs`)
+   - **Detection Patterns**: `["*.js", "package.json", "index.js"]`
+   - **Path Pattern**: `skills/custom/{name}/`
+   - **Metadata File**: `package.json`
+
+#### Convention Registry
+
+```rust
+pub struct ConventionRegistry {
+    conventions: HashMap<String, Box<dyn Convention>>,
+}
+```
+
+---
+
+## Project Structure Patterns
+
+### Skill Organization by Convention
+
+Skills are organized according to their detected or specified convention:
+
+```
+project/
+├── skillset.json              # Configuration file
+├── skills/                    # Auto-organized skills by framework
+│   ├── autogpt/             # Auto-GPT framework skills (auto-detected)
+│   │   ├── file-analyzer/   # skill.py, requirements.txt, skill.json
+│   │   └── web-scraper/      # skill.py, requirements.txt, skill.json
+│   ├── langchain/            # LangChain framework skills (auto-detected)
+│   │   ├── llm-tool/         # tool.yaml, tool.py, pyproject.toml
+│   │   └── document-summarizer/ # tool.yaml, llm_tool.py
+│   └── custom/             # Custom framework skills (user-specified)
+│       └── my-tool/        # package.json, index.js
+└── .skillset/               # Working directory
+    ├── cache/                # Downloaded repositories
+    │   ├── file-analyzer/   # Cached source code
+    │   └── web-scraper/    # Cached source code
+    └── metadata/              # Extracted skill metadata
+```
+
+**Auto-Detection Priority**:
+1. **Convention Override**: Explicit `convention` field in complex skill config
+2. **File Pattern Detection**: Built-in detection logic for each framework
+3. **Fallback**: Default to custom convention if no patterns match
+
+---
+
+## CLI Design and Semantics
+
+### npm-like Semantics
+
+The CLI follows familiar npm package manager semantics:
+
+```bash
+# Install simple skill (auto-resolves to registry)
+skillset add file-analyzer@1.0.0
+
+# Install scoped skill (user namespace)
+skillset add @johndoe/web-scraper@2.0.0
+
+# Install from explicit source
+skillset add custom-skill --source git:https://github.com/user/repo
+
+# Install with convention override
+skillset add my-tool --convention langchain
+
+# Install from OCI registry (explicit)
+skillset add oci:ghcr.io/user/skill:v1.0.0
+
+# List all installed skills
+skillset list
+
+# List with verbose output
+skillset list --verbose
+
+# Remove a skill
+skillset remove skill-name
+
+# Update skills
+skillset update [skill-name]
+
+# Get skill information
+skillset info skill-name
+
+# Manage conventions
+skillset convention list
+skillset convention enable autogpt
+skillset convention disable langchain
+
+# Publish to OCI registry
+skillset publish ./my-skill oci:ghcr.io/user/my-skill:v1.0.0
+```
+
+### Command Structure (`src/cli/mod.rs`)
+
+```rust
+#[derive(Subcommand)]
+pub enum Commands {
+    Add { reference: String, convention: Option<String>, version: Option<String> },
+    Remove { name: String },
+    List { verbose: bool },
+    Update { name: Option<String> },
+    Info { name: String },
+    Convention { command: ConventionCommands },
+    Publish { path: String, reference: String, registry: Option<String> },
+}
+```
+
+---
+
+## Integration Guidelines for Agent Frameworks
+
+### Adding New Frameworks
+
+To integrate a new agent framework:
+
+1. **Create Convention Implementation** (`src/conventions/my_framework.rs`)
+   ```rust
+   impl Convention for MyFrameworkConvention {
+       fn name(&self) -> &str { "my-framework" }
+       fn detect(&self, path: &Path) -> Result<bool> { /* detection logic */ }
+       fn organize(&self, skill_name: &str, source_path: &Path, target_path: &Path) -> Result<()> { /* organization logic */ }
+       fn description(&self) -> &str { "My framework description" }
+       fn version(&self) -> &str { "1.0.0" }
+   }
+   ```
+
+2. **Register Convention in SkillManager** (`src/skill/manager.rs`)
+   ```rust
+   let mut manager = SkillManager::new(project_path)?;
+   manager.convention_registry.register(Box::new(MyFrameworkConvention::new()));
+   ```
+
+3. **Add to Enabled Conventions** (in project `skillset.json`)
+   ```json
+   {
+     "conventions": ["autogpt", "langchain", "my-framework"]
+   }
+   ```
+
+### Framework Integration Example
+
+**Auto-GPT Integration**:
+```python
+# skills/autogpt/my-skill/skill.json
+{
+  "name": "my-skill",
+  "description": "A skill for Auto-GPT",
+  "entry_point": "skill.py",
+  "dependencies": ["requests", "openai"]
+}
+```
+
+**LangChain Integration**:
+```python
+# skills/langchain/my-tool/tool.yaml
+name: my-tool
+description: A LangChain-compatible tool
+tool_type: llm_function
+input_schema:
+  type: object
+  properties:
+    query:
+      type: string
+      description: The input query
+```
+
+---
+
+## Development Guidelines
+
+### Code Organization
+
+1. **Trait-Based Design**: Use traits for pluggable components
+2. **Error Handling**: Comprehensive error types with proper `From` implementations
+3. **Async/Await**: Use async traits and `.await` for I/O operations
+4. **Configuration Management**: Centralized config loading and saving
+
+### Adding New Features
+
+1. **Trait Implementation**: Always implement required trait methods
+2. **Error Variants**: Create specific error variants for each failure mode
+3. **Configuration Structures**: Add new fields to appropriate structs
+4. **CLI Commands**: Extend `Commands` and `ConventionCommands` enums
+5. **Testing**: Add tests for new functionality
+
+### Error Handling Strategy
+
+```rust
+#[derive(Debug, thiserror::Error)]
+pub enum SkillsetError {
+    #[error("Source not found: {0}")]
+    SourceNotFound(String),
+    
+    #[error("Cache operation failed: {0}")]
+    CacheError(#[from] std::io::Error),
+    
+    #[error("Invalid configuration: {0}")]
+    InvalidConfig(String),
+}
+```
+
+### Testing Approach
+
+- **Unit Tests**: Test individual trait implementations
+- **Integration Tests**: Test CLI commands and end-to-end workflows
+- **Mock Sources**: Use mock sources for testing without network dependencies
 
 ---
 
