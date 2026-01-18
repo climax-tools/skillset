@@ -1,5 +1,9 @@
 # Skillset
 
+![Crates.io](https://img.shields.io/crates/v/skillset)
+![License](https://img.shields.io/github/license/climax-tools/skillset)
+![Rust](https://img.shields.io/badge/rust-2021+-blue.svg)
+
 A CLI package manager for AI agent skills. Install, manage, and organize skills across multiple agent frameworks with simple npm-like commands.
 
 ## Quick Start
