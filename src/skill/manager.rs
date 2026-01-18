@@ -30,6 +30,10 @@ impl SkillManager {
         if enabled_conventions.contains(&"langchain".to_string()) {
             convention_registry.register(Box::new(crate::conventions::LangchainConvention::new()));
         }
+        if enabled_conventions.contains(&"agent-skills".to_string()) {
+            convention_registry
+                .register(Box::new(crate::conventions::AgentSkillsConvention::new()));
+        }
 
         Ok(Self {
             convention_registry,

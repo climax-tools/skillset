@@ -14,7 +14,10 @@ mod tests {
 
         // Helper methods should provide runtime defaults
         assert_eq!(config.get_registry(), "ghcr.io/skillset");
-        assert_eq!(config.get_conventions(), vec!["autogpt", "langchain"]);
+        assert_eq!(
+            config.get_conventions(),
+            vec!["autogpt", "langchain", "agent-skills"]
+        );
     }
 
     #[test]
@@ -26,7 +29,10 @@ mod tests {
         };
 
         assert_eq!(config.get_registry(), "my-registry.example.com/custom");
-        assert_eq!(config.get_conventions(), vec!["autogpt", "langchain"]); // Still uses default
+        assert_eq!(
+            config.get_conventions(),
+            vec!["autogpt", "langchain", "agent-skills"]
+        ); // Still uses default
     }
 
     #[test]
@@ -72,7 +78,7 @@ mod tests {
     fn test_partial_config_serialization() {
         let mut skills = HashMap::new();
         skills.insert(
-            "test-skill".to_string(),
+            "react-best-practices".to_string(),
             SkillConfig::Simple("1.0.0".to_string()),
         );
 
@@ -100,7 +106,7 @@ mod tests {
             &config_path,
             r#"{
   "skills": {
-    "test-skill": "1.0.0"
+    "react-best-practices": "1.0.0"
   }
 }"#,
         )
@@ -112,7 +118,10 @@ mod tests {
         assert_eq!(config.registry, None);
         assert_eq!(config.conventions, None);
         assert_eq!(config.get_registry(), "ghcr.io/skillset");
-        assert_eq!(config.get_conventions(), vec!["autogpt", "langchain"]);
+        assert_eq!(
+            config.get_conventions(),
+            vec!["autogpt", "langchain", "agent-skills"]
+        );
     }
 
     #[test]
@@ -125,11 +134,11 @@ mod tests {
 
         let skill_config = SkillConfig::Simple("1.0.0".to_string());
         let resolved = config
-            .resolve_skill_reference("file-analyzer", &skill_config)
+            .resolve_skill_reference("react-best-practices", &skill_config)
             .unwrap();
 
         // Should use default registry
-        assert_eq!(resolved, "oci:ghcr.io/skillset/file-analyzer:v1.0.0");
+        assert_eq!(resolved, "oci:ghcr.io/skillset/react-best-practices:v1.0.0");
     }
 
     #[test]
@@ -142,11 +151,14 @@ mod tests {
 
         let skill_config = SkillConfig::Simple("1.0.0".to_string());
         let resolved = config
-            .resolve_skill_reference("file-analyzer", &skill_config)
+            .resolve_skill_reference("react-best-practices", &skill_config)
             .unwrap();
 
         // Should use custom registry
-        assert_eq!(resolved, "oci:my-registry.com/ns/file-analyzer:v1.0.0");
+        assert_eq!(
+            resolved,
+            "oci:my-registry.com/ns/react-best-practices:v1.0.0"
+        );
     }
 
     #[test]

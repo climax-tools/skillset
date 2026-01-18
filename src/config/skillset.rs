@@ -80,9 +80,13 @@ impl SkillsetConfig {
 
     /// Get the list of enabled conventions with runtime default fallback
     pub fn get_conventions(&self) -> Vec<String> {
-        self.conventions
-            .clone()
-            .unwrap_or_else(|| vec!["autogpt".to_string(), "langchain".to_string()])
+        self.conventions.clone().unwrap_or_else(|| {
+            vec![
+                "autogpt".to_string(),
+                "langchain".to_string(),
+                "agent-skills".to_string(),
+            ]
+        })
     }
 
     pub fn resolve_skill_reference(

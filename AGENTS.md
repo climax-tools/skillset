@@ -357,7 +357,13 @@ pub trait Convention: Send + Sync {
    - **Path Pattern**: `skills/langchain/{name}/`
    - **Metadata File**: `tool.yaml`
 
-3. **Custom Convention** (`src/conventions/custom.rs`)
+3. **Agent Skills Convention** (`src/conventions/agent-skills.rs`)
+   - **Detection Patterns**: `["SKILL.md", "skill.yaml", "scripts/", "references/"]`
+   - **Path Pattern**: `skills/agent-skills/{name}/`
+   - **Metadata File**: `SKILL.md`
+   - **Example**: Vercel's `react-best-practices` skill
+
+4. **Custom Convention** (`src/conventions/custom.rs`)
    - **Detection Patterns**: `["*.js", "package.json", "index.js"]`
    - **Path Pattern**: `skills/custom/{name}/`
    - **Metadata File**: `package.json`
@@ -388,12 +394,14 @@ project/
 │   ├── langchain/            # LangChain framework skills (auto-detected)
 │   │   ├── llm-tool/         # tool.yaml, tool.py, pyproject.toml
 │   │   └── document-summarizer/ # tool.yaml, llm_tool.py
+│   ├── agent-skills/         # Vercel Agent Skills (auto-detected)
+│   │   └── react-best-practices/ # SKILL.md, scripts/, references/
 │   └── custom/             # Custom framework skills (user-specified)
 │       └── my-tool/        # package.json, index.js
 └── .skillset/               # Working directory
     ├── cache/                # Downloaded repositories
     │   ├── file-analyzer/   # Cached source code
-    │   └── web-scraper/    # Cached source code
+    │   └── react-best-practices/ # Cached Vercel skill
     └── metadata/              # Extracted skill metadata
 ```
 
@@ -491,11 +499,21 @@ To integrate a new agent framework:
    ```
 
 3. **Add to Enabled Conventions** (in project `skillset.json`)
-   ```json
-   {
-     "conventions": ["autogpt", "langchain", "my-framework"]
-   }
-   ```
+```json
+{
+  "skills": {
+    "react-best-practices": "1.0.0",
+    "@user/web-scraper": "2.1.0",
+    "complex-skill": {
+      "version": "3.0.0",
+      "source": "git:https://github.com/vercel-labs/agent-skills",
+      "convention": "agent-skills"
+    }
+  },
+  "registry": "ghcr.io/skillset",
+  "conventions": ["autogpt", "langchain", "agent-skills"]
+}
+```
 
 ### Framework Integration Example
 

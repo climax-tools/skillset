@@ -11,8 +11,8 @@ cargo install skillset
 
 ### Basic Usage
 ```bash
-# Install a skill
-skillset add file-analyzer@1.0.0
+# Install React best practices skill
+skillset add react-best-practices@1.0.0
 
 # Install from a specific source
 skillset add my-skill --source git:https://github.com/user/repo
@@ -21,7 +21,7 @@ skillset add my-skill --source git:https://github.com/user/repo
 skillset list
 
 # Remove a skill
-skillset remove file-analyzer
+skillset remove react-best-practices
 ```
 
 ### Configuration
@@ -30,27 +30,28 @@ Create `skillset.json` in your project:
 ```json
 {
   "skills": {
-    "file-analyzer": "1.0.0",
+    "react-best-practices": "1.0.0",
     "@user/web-scraper": "2.1.0",
     "custom-skill": {
       "version": "3.0.0",
-      "source": "git:https://github.com/custom/repo",
-      "convention": "autogpt"
+      "source": "git:https://github.com/vercel-labs/agent-skills",
+      "convention": "agent-skills"
     }
   },
   "registry": "ghcr.io/skillset",
-  "conventions": ["autogpt", "langchain"]
+  "conventions": ["autogpt", "langchain", "agent-skills"]
 }
 ```
 
 ## Features
 
-- **Multi-Framework Support**: Works with Auto-GPT, LangChain, and custom agent frameworks
+- **Multi-Framework Support**: Works with Auto-GPT, LangChain, Vercel Agent Skills, and custom agent frameworks
 - **Smart Organization**: Automatically organizes skills by framework conventions
 - **Multiple Sources**: Install from Git repositories, OCI registries, or local paths
 - **Version Management**: Pin specific versions or use `latest`
 - **Scoped Namespaces**: Use `@user/skill` format for community skills
 - **Zero-Configuration Caching**: Automatic cross-project skill sharing
+- **Production-Ready Skills**: Access Vercel's React best practices and other production-grade skills
 
 ## CLI Reference
 
@@ -85,6 +86,7 @@ skillset publish <path> <reference>
 
 - **Auto-GPT**: Automatically detected and organized as `skills/autogpt/{name}/`
 - **LangChain**: Automatically detected and organized as `skills/langchain/{name}/`
+- **Vercel Agent Skills**: Automatically detected and organized as `skills/agent-skills/{name}/`
 - **Custom**: User-defined conventions for any framework
 
 ## Reference Resolution
@@ -104,8 +106,10 @@ project/
 ├── skills/
 │   ├── autogpt/
 │   │   └── file-analyzer/
-│   └── langchain/
-│       └── llm-tool/
+│   ├── langchain/
+│   │   └── llm-tool/
+│   └── agent-skills/
+│       └── react-best-practices/
 └── .skillset/
     └── cache/
 ```

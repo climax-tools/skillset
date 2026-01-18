@@ -147,6 +147,58 @@ impl Convention for LangchainConvention {
     }
 }
 
+pub struct AgentSkillsConvention;
+
+impl AgentSkillsConvention {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+#[async_trait]
+impl Convention for AgentSkillsConvention {
+    fn name(&self) -> &str {
+        "agent-skills"
+    }
+
+    fn version(&self) -> &str {
+        "1.0.0"
+    }
+
+    fn description(&self) -> &str {
+        "Vercel Agent Skills convention (SKILL.md format)"
+    }
+
+    async fn detect(&self, path: &std::path::Path) -> Result<bool> {
+        let skill_md = path.join("SKILL.md");
+        let skill_yaml = path.join("skill.yaml");
+        let scripts_dir = path.join("scripts");
+        let references_dir = path.join("references");
+
+        Ok(skill_md.exists()
+            || skill_yaml.exists()
+            || scripts_dir.exists()
+            || references_dir.exists())
+    }
+
+    async fn organize(
+        &self,
+        skill_name: &str,
+        source_path: &std::path::Path,
+        target_path: &std::path::Path,
+    ) -> Result<()> {
+        let final_path = target_path
+            .join("skills")
+            .join("agent-skills")
+            .join(skill_name);
+        std::fs::create_dir_all(&final_path)?;
+
+        copy_dir_all(source_path, &final_path)?;
+
+        Ok(())
+    }
+}
+
 fn copy_dir_all(src: &std::path::Path, dst: &std::path::Path) -> Result<()> {
     std::fs::create_dir_all(dst)?;
     for entry in std::fs::read_dir(src)? {

@@ -266,9 +266,9 @@ pub async fn handle_convention(command: ConventionCommands) -> Result<()> {
             }
 
             // Validate convention name
-            if !["autogpt", "langchain"].contains(&name.as_str()) {
+            if !["autogpt", "langchain", "agent-skills"].contains(&name.as_str()) {
                 return Err(crate::error::SkillsetError::Config(format!(
-                    "Unknown convention: {}. Available: autogpt, langchain",
+                    "Unknown convention: {}. Available: autogpt, langchain, agent-skills",
                     name
                 )));
             }
