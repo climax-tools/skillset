@@ -4,8 +4,10 @@ version = "0.1.0"
 edition = "2021"
 description = "A package manager for coding agent skills"
 authors = ["Skillset Team"]
-license = "MIT"
+license = "Apache-2.0"
 repository = "https://github.com/skillset/skillset"
+categories = ["development-tools", "command-line-utilities"]
+keywords = ["cli", "package-manager", "ai", "agent", "skills"]
 
 [dependencies]
 # CLI argument parsing
